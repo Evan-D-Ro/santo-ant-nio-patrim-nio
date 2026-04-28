@@ -9,38 +9,128 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RelatoriosRouteImport } from './routes/relatorios'
+import { Route as ManutencoesRouteImport } from './routes/manutencoes'
+import { Route as CategoriasRouteImport } from './routes/categorias'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ItensIndexRouteImport } from './routes/itens.index'
+import { Route as ItensItemIdRouteImport } from './routes/itens.$itemId'
 
+const RelatoriosRoute = RelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManutencoesRoute = ManutencoesRouteImport.update({
+  id: '/manutencoes',
+  path: '/manutencoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CategoriasRoute = CategoriasRouteImport.update({
+  id: '/categorias',
+  path: '/categorias',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ItensIndexRoute = ItensIndexRouteImport.update({
+  id: '/itens/',
+  path: '/itens/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ItensItemIdRoute = ItensItemIdRouteImport.update({
+  id: '/itens/$itemId',
+  path: '/itens/$itemId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/categorias': typeof CategoriasRoute
+  '/manutencoes': typeof ManutencoesRoute
+  '/relatorios': typeof RelatoriosRoute
+  '/itens/$itemId': typeof ItensItemIdRoute
+  '/itens/': typeof ItensIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/categorias': typeof CategoriasRoute
+  '/manutencoes': typeof ManutencoesRoute
+  '/relatorios': typeof RelatoriosRoute
+  '/itens/$itemId': typeof ItensItemIdRoute
+  '/itens': typeof ItensIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/categorias': typeof CategoriasRoute
+  '/manutencoes': typeof ManutencoesRoute
+  '/relatorios': typeof RelatoriosRoute
+  '/itens/$itemId': typeof ItensItemIdRoute
+  '/itens/': typeof ItensIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/categorias'
+    | '/manutencoes'
+    | '/relatorios'
+    | '/itens/$itemId'
+    | '/itens/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/categorias'
+    | '/manutencoes'
+    | '/relatorios'
+    | '/itens/$itemId'
+    | '/itens'
+  id:
+    | '__root__'
+    | '/'
+    | '/categorias'
+    | '/manutencoes'
+    | '/relatorios'
+    | '/itens/$itemId'
+    | '/itens/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CategoriasRoute: typeof CategoriasRoute
+  ManutencoesRoute: typeof ManutencoesRoute
+  RelatoriosRoute: typeof RelatoriosRoute
+  ItensItemIdRoute: typeof ItensItemIdRoute
+  ItensIndexRoute: typeof ItensIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/relatorios': {
+      id: '/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof RelatoriosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manutencoes': {
+      id: '/manutencoes'
+      path: '/manutencoes'
+      fullPath: '/manutencoes'
+      preLoaderRoute: typeof ManutencoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/categorias': {
+      id: '/categorias'
+      path: '/categorias'
+      fullPath: '/categorias'
+      preLoaderRoute: typeof CategoriasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,21 +138,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/itens/': {
+      id: '/itens/'
+      path: '/itens'
+      fullPath: '/itens/'
+      preLoaderRoute: typeof ItensIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/itens/$itemId': {
+      id: '/itens/$itemId'
+      path: '/itens/$itemId'
+      fullPath: '/itens/$itemId'
+      preLoaderRoute: typeof ItensItemIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CategoriasRoute: CategoriasRoute,
+  ManutencoesRoute: ManutencoesRoute,
+  RelatoriosRoute: RelatoriosRoute,
+  ItensItemIdRoute: ItensItemIdRoute,
+  ItensIndexRoute: ItensIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
