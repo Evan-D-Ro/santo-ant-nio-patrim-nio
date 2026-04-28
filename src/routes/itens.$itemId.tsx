@@ -30,10 +30,7 @@ export const Route = createFileRoute("/itens/$itemId")({
 function ItemDetail() {
   const { itemId } = Route.useParams();
   const navigate = useNavigate();
-  const {
-    itens, categorias, movimentacoes, manutencoes,
-    registrarMovimentacao, registrarManutencao, changeStatus,
-  } = useStore();
+  const { itens, categorias, movimentacoes, manutencoes, changeStatus } = useStore();
 
   const item = itens.find((i) => i.id === itemId);
   if (!item) {
