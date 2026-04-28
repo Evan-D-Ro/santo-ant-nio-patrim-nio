@@ -18,7 +18,7 @@ import { EstadoBadge, StatusBadge } from "@/components/Badges";
 import { ItemForm } from "@/components/ItemForm";
 import { Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
 
-export const Route = createFileRoute("/itens")({
+export const Route = createFileRoute("/itens/")({
   head: () => ({
     meta: [{ title: "Itens • Patrimônio Paroquial" }],
   }),
