@@ -180,6 +180,10 @@ interface StoreCtx {
   deleteItem: (id: string) => void;
   changeStatus: (id: string, status: StatusItem, responsavel: string, observacao?: string) => void;
   appendHistorico: (id: string, acao: AcaoHistorico) => void;
+  // documentos
+  addDocumento: (itemId: string, doc: Omit<import("./types").DocumentoMidia, "id">) => void;
+  removeDocumento: (itemId: string, docId: string) => void;
+  setFoto: (itemId: string, url: string) => void;
   // movimentação
   registrarMovimentacao: (m: Omit<Movimentacao, "id" | "data"> & { data?: string }) => void;
   // manutenção
