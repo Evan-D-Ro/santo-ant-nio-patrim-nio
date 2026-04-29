@@ -16,7 +16,9 @@ import { useStore, formatBRL, formatDate, formatDateTime } from "@/lib/store";
 import { LOCAIS, type StatusItem, type StatusManutencao, type TipoManutencao } from "@/lib/types";
 import { EstadoBadge, ManutencaoStatusBadge, StatusBadge } from "@/components/Badges";
 import { ItemForm } from "@/components/ItemForm";
-import { ArrowLeft, ArrowRightLeft, Wrench, RefreshCw, Pencil, Paperclip, FileText, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, Wrench, RefreshCw, Pencil, FileText, Image as ImageIcon, Trash2, Star, ImageOff } from "lucide-react";
+import { FileUploader } from "@/components/FileUploader";
+import type { DocumentoMidia } from "@/lib/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/itens/$itemId")({
