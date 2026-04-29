@@ -166,31 +166,130 @@ function ItemDetail() {
         </TabsContent>
 
         <TabsContent value="doc" className="mt-4">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Documentos & Mídia</CardTitle></CardHeader>
-            <CardContent>
-              <div className="rounded-md border-2 border-dashed p-8 text-center text-sm text-muted-foreground">
-                <Paperclip className="mx-auto mb-2 h-6 w-6" />
-                Área preparada para upload de Nota Fiscal, Garantia, Manual e Fotos.
-                <div className="mt-1 text-xs">(Será integrada ao armazenamento da Lovable Cloud.)</div>
-              </div>
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { i: FileText, l: "Nota Fiscal" },
-                  { i: FileText, l: "Garantia" },
-                  { i: FileText, l: "Manual" },
-                  { i: ImageIcon, l: "Fotos" },
-                ].map((x) => (
-                  <div key={x.l} className="rounded-md border bg-muted/20 p-4 text-center text-xs">
-                    <x.i className="mx-auto mb-1 h-5 w-5 text-primary" />
-                    {x.l}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <DocumentosTab itemId={item.id} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function DocumentosTab({ itemId }: { itemId: string }) {
+  const { itens, addDocumento, removeDocumento, setFoto } = useStore();
+  const item = itens.find((i) => i.id === itemId);
+  if (!item) return null;
+
+  const fotos = item.documentos.filter((d) => d.tipo === "Foto");
+  const docs = item.documentos.filter((d) => d.tipo !== "Foto");
+
+  const tipos: DocumentoMidia["tipo"][] = ["Nota Fiscal", "Garantia", "Manual"];
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ImageIcon className="h-4 w-4" /> Fotos do item
+          </CardTitle>
+          <FileUploader
+            itemId={item.id}
+            accept="image/*"
+            label="Adicionar foto"
+            onUploaded={(url, file) => {
+              addDocumento(item.id, { tipo: "Foto", nome: file.name, url });
+              if (!item.fotoUrl) setFoto(item.id, url);
+            }}
+          />
+        </CardHeader>
+        <CardContent>
+          {fotos.length === 0 ? (
+            <div className="rounded-md border-2 border-dashed p-8 text-center text-sm text-muted-foreground">
+              <ImageOff className="mx-auto mb-2 h-6 w-6" />
+              Nenhuma foto enviada ainda. Envie a primeira para que apareça nos cards do inventário.
+            </div>
+          ) : (
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
+              {fotos.map((f) => {
+                const isCover = item.fotoUrl === f.url;
+                return (
+                  <div key={f.id} className="group relative rounded-md overflow-hidden border bg-muted aspect-square">
+                    <img src={f.url} alt={f.nome} className="h-full w-full object-cover" />
+                    {isCover && (
+                      <span className="absolute top-1 left-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
+                        Capa
+                      </span>
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                      {!isCover && (
+                        <Button size="icon" variant="secondary" title="Definir como capa" onClick={() => setFoto(item.id, f.url)}>
+                          <Star className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        title="Remover"
+                        onClick={() => { removeDocumento(item.id, f.id); toast.success("Foto removida"); }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-4 w-4" /> Documentos
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {tipos.map((t) => (
+              <FileUploader
+                key={t}
+                itemId={item.id}
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                label={`Enviar ${t}`}
+                onUploaded={(url, file) =>
+                  addDocumento(item.id, { tipo: t, nome: file.name, url })
+                }
+              />
+            ))}
+          </div>
+
+          {docs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum documento anexado.</p>
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {docs.map((d) => (
+                <li key={d.id} className="flex items-center justify-between p-3 text-sm">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-4 w-4 text-primary shrink-0" />
+                    <div className="min-w-0">
+                      <a href={d.url} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline truncate block">
+                        {d.nome}
+                      </a>
+                      <div className="text-xs text-muted-foreground">{d.tipo}</div>
+                    </div>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => { removeDocumento(item.id, d.id); toast.success("Documento removido"); }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
