@@ -249,10 +249,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ),
         ),
 
-      appendHistorico: (id, acao) =>
+
+      addDocumento: (itemId, doc) =>
         setItens((p) =>
-          p.map((x) => (x.id === id ? { ...x, historico: [...x.historico, acao] } : x)),
+          p.map((x) =>
+            x.id === itemId
+              ? {
+                  ...x,
+                  documentos: [...x.documentos, { ...doc, id: uid() }],
+                  historico: [
+                    ...x.historico,
+                    { id: uid(), data: now(), acao: `Documento "${doc.nome}" anexado`, responsavel: "Sistema" },
+                  ],
+                }
+              : x,
+          ),
         ),
+
+      removeDocumento: (itemId, docId) =>
+        setItens((p) =>
+          p.map((x) =>
+            x.id === itemId
+              ? { ...x, documentos: x.documentos.filter((d) => d.id !== docId) }
+              : x,
+          ),
+        ),
+
+      setFoto: (itemId, url) =>
+        setItens((p) =>
+          p.map((x) =>
+            x.id === itemId
+              ? {
+                  ...x,
+                  fotoUrl: url,
+                  historico: [
+                    ...x.historico,
+                    { id: uid(), data: now(), acao: "Foto principal atualizada", responsavel: "Sistema" },
+                  ],
+                }
+              : x,
+          ),
+        ),
+
+
 
       registrarMovimentacao: (m) => {
         const mov: Movimentacao = { ...m, id: uid(), data: m.data ?? now() };
