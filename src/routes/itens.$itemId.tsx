@@ -20,6 +20,9 @@ import { ArrowLeft, ArrowRightLeft, Wrench, RefreshCw, Pencil, FileText, Image a
 import { FileUploader } from "@/components/FileUploader";
 import type { DocumentoMidia } from "@/lib/types";
 import { toast } from "sonner";
+import Swal from "sweetalert2";
+import "sweetalert2/dist/sweetalert2.min.css";
+import { useAccessControl } from "@/hooks/use-access-control";
 
 export const Route = createFileRoute("/itens/$itemId")({
   head: ({ params }) => ({
@@ -32,7 +35,8 @@ export const Route = createFileRoute("/itens/$itemId")({
 function ItemDetail() {
   const { itemId } = Route.useParams();
   const navigate = useNavigate();
-  const { itens, categorias, movimentacoes, manutencoes, changeStatus } = useStore();
+  const { itens, categorias, movimentacoes, manutencoes, changeStatus, deleteItem } = useStore();
+  const { canManageInventory } = useAccessControl();
 
   const item = itens.find((i) => i.id === itemId);
   if (!item) {
@@ -71,14 +75,57 @@ function ItemDetail() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <MovimentacaoDialog itemId={item.id} origem={item.localAtual} onDone={() => {}} />
-          <ManutencaoDialog itemId={item.id} onDone={() => {}} />
-          <StatusDialog
-            itemId={item.id}
-            current={item.status}
-            onApply={(s, r, obs) => { changeStatus(item.id, s, r, obs); toast.success("Status atualizado"); }}
-          />
-          <EditarDialog itemId={item.id} />
+          {canManageInventory ? (
+            <>
+              <MovimentacaoDialog itemId={item.id} origem={item.localAtual} onDone={() => {}} />
+              <ManutencaoDialog itemId={item.id} onDone={() => {}} />
+              <StatusDialog
+                itemId={item.id}
+                current={item.status}
+                onApply={async (s, r, obs) => {
+                  try {
+                    await changeStatus(item.id, s, r, obs);
+                    toast.success("Status atualizado");
+                  } catch (error) {
+                    console.error(error);
+                    toast.error("Nao foi possivel atualizar o status.");
+                  }
+                }}
+              />
+              <EditarDialog itemId={item.id} />
+              <Button
+                variant="destructive"
+                className="gap-2"
+                onClick={async () => {
+                  const result = await Swal.fire({
+                    title: "Excluir equipamento?",
+                    text: `Esta ação removerá "${item.nome}" permanentemente.`,
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonText: "Excluir",
+                    cancelButtonText: "Cancelar",
+                    confirmButtonColor: "#dc2626",
+                    cancelButtonColor: "#6b7280",
+                    reverseButtons: true,
+                  });
+
+                  if (!result.isConfirmed) return;
+
+                  try {
+                    await deleteItem(item.id);
+                    toast.success("Equipamento excluído");
+                    await navigate({ to: "/itens", replace: true });
+                  } catch (error) {
+                    console.error(error);
+                    toast.error("Nao foi possivel excluir o equipamento.");
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -175,6 +222,7 @@ function ItemDetail() {
 
 function DocumentosTab({ itemId }: { itemId: string }) {
   const { itens, addDocumento, removeDocumento, setFoto } = useStore();
+  const { canManageInventory } = useAccessControl();
   const item = itens.find((i) => i.id === itemId);
   if (!item) return null;
 
@@ -185,18 +233,24 @@ function DocumentosTab({ itemId }: { itemId: string }) {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ImageIcon className="h-4 w-4" /> Fotos do item
-          </CardTitle>
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ImageIcon className="h-4 w-4" /> Fotos do item
+            </CardTitle>
           <FileUploader
             itemId={item.id}
             accept="image/*"
             label="Adicionar foto"
-            onUploaded={(url, file) => {
-              addDocumento(item.id, { tipo: "Foto", nome: file.name, url });
-              if (!item.fotoUrl) setFoto(item.id, url);
+            readOnly={!canManageInventory}
+            onUploaded={async (url, file) => {
+              try {
+                await addDocumento(item.id, { tipo: "Foto", nome: file.name, url });
+                if (!item.fotoUrl) await setFoto(item.id, url);
+              } catch (error) {
+                console.error(error);
+                toast.error("Nao foi possivel enviar a foto.");
+              }
             }}
           />
         </CardHeader>
@@ -212,27 +266,53 @@ function DocumentosTab({ itemId }: { itemId: string }) {
                 const isCover = item.fotoUrl === f.url;
                 return (
                   <div key={f.id} className="group relative rounded-md overflow-hidden border bg-muted aspect-square">
-                    <img src={f.url} alt={f.nome} className="h-full w-full object-cover" />
+                    <img
+                      src={item.updatedAt ? `${f.url}${f.url.includes("?") ? "&" : "?"}v=${encodeURIComponent(item.updatedAt)}` : f.url}
+                      alt={f.nome}
+                      className="h-full w-full object-cover"
+                    />
                     {isCover && (
                       <span className="absolute top-1 left-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
                         Capa
                       </span>
                     )}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-                      {!isCover && (
-                        <Button size="icon" variant="secondary" title="Definir como capa" onClick={() => setFoto(item.id, f.url)}>
-                          <Star className="h-4 w-4" />
+                    {canManageInventory && (
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                        {!isCover && (
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            title="Definir como capa"
+                            onClick={async () => {
+                              try {
+                                await setFoto(item.id, f.url);
+                              } catch (error) {
+                                console.error(error);
+                                toast.error("Nao foi possivel definir a capa.");
+                              }
+                            }}
+                          >
+                            <Star className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          title="Remover"
+                          onClick={async () => {
+                            try {
+                              await removeDocumento(item.id, f.id);
+                              toast.success("Foto removida");
+                            } catch (error) {
+                              console.error(error);
+                              toast.error("Nao foi possivel remover a foto.");
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
-                      )}
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        title="Remover"
-                        onClick={() => { removeDocumento(item.id, f.id); toast.success("Foto removida"); }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -255,9 +335,15 @@ function DocumentosTab({ itemId }: { itemId: string }) {
                 itemId={item.id}
                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                 label={`Enviar ${t}`}
-                onUploaded={(url, file) =>
-                  addDocumento(item.id, { tipo: t, nome: file.name, url })
-                }
+                readOnly={!canManageInventory}
+                onUploaded={async (url, file) => {
+                  try {
+                    await addDocumento(item.id, { tipo: t, nome: file.name, url });
+                  } catch (error) {
+                    console.error(error);
+                    toast.error("Nao foi possivel anexar o documento.");
+                  }
+                }}
               />
             ))}
           </div>
@@ -277,13 +363,23 @@ function DocumentosTab({ itemId }: { itemId: string }) {
                       <div className="text-xs text-muted-foreground">{d.tipo}</div>
                     </div>
                   </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => { removeDocumento(item.id, d.id); toast.success("Documento removido"); }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {canManageInventory && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={async () => {
+                        try {
+                          await removeDocumento(item.id, d.id);
+                          toast.success("Documento removido");
+                        } catch (error) {
+                          console.error(error);
+                          toast.error("Nao foi possivel remover o documento.");
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -305,18 +401,28 @@ function Info({ k, v }: { k: string; v: string }) {
 
 function MovimentacaoDialog({ itemId, origem }: { itemId: string; origem: string; onDone: () => void }) {
   const { registrarMovimentacao } = useStore();
+  const { canManageInventory } = useAccessControl();
   const [open, setOpen] = useState(false);
   const [destino, setDestino] = useState<string>(LOCAIS[0]);
   const [responsavel, setResponsavel] = useState("");
   const [motivo, setMotivo] = useState("Transferência");
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!canManageInventory) {
+      toast.error("Seu acesso é somente consulta.");
+      return;
+    }
     if (!responsavel.trim()) { toast.error("Informe o responsável."); return; }
     if (destino === origem) { toast.error("Destino igual ao local atual."); return; }
-    registrarMovimentacao({ itemId, origem, destino, responsavel, motivo });
-    toast.success("Movimentação registrada");
-    setOpen(false);
+    try {
+      await registrarMovimentacao({ itemId, origem, destino, responsavel, motivo });
+      toast.success("Movimentação registrada");
+      setOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Nao foi possivel registrar a movimentacao.");
+    }
   };
 
   return (
@@ -357,6 +463,7 @@ function MovimentacaoDialog({ itemId, origem }: { itemId: string; origem: string
 
 function ManutencaoDialog({ itemId }: { itemId: string; onDone: () => void }) {
   const { registrarManutencao } = useStore();
+  const { canManageInventory } = useAccessControl();
   const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<TipoManutencao>("Corretiva");
   const [descricao, setDescricao] = useState("");
@@ -364,15 +471,24 @@ function ManutencaoDialog({ itemId }: { itemId: string; onDone: () => void }) {
   const [custo, setCusto] = useState(0);
   const [status, setStatus] = useState<StatusManutencao>("Em andamento");
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!canManageInventory) {
+      toast.error("Seu acesso é somente consulta.");
+      return;
+    }
     if (!descricao.trim()) { toast.error("Descreva o problema."); return; }
-    registrarManutencao({
-      itemId, tipo, descricao, fornecedor: fornecedor || "Não informado",
-      custo, status, data: new Date().toISOString().slice(0, 10),
-    });
-    toast.success("Manutenção registrada");
-    setOpen(false);
+    try {
+      await registrarManutencao({
+        itemId, tipo, descricao, fornecedor: fornecedor || "Não informado",
+        custo, status, data: new Date().toISOString().slice(0, 10),
+      });
+      toast.success("Manutenção registrada");
+      setOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Nao foi possivel registrar a manutencao.");
+    }
   };
 
   return (
@@ -430,16 +546,26 @@ function ManutencaoDialog({ itemId }: { itemId: string; onDone: () => void }) {
 function StatusDialog({
   current, onApply,
 }: { itemId: string; current: StatusItem; onApply: (s: StatusItem, r: string, obs?: string) => void }) {
+  const { canManageInventory } = useAccessControl();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<StatusItem>(current);
   const [responsavel, setResponsavel] = useState("");
   const [obs, setObs] = useState("");
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!canManageInventory) {
+      toast.error("Seu acesso é somente consulta.");
+      return;
+    }
     if (!responsavel.trim()) { toast.error("Assine com seu nome."); return; }
-    onApply(status, responsavel, obs || undefined);
-    setOpen(false);
+    try {
+      await onApply(status, responsavel, obs || undefined);
+      setOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Nao foi possivel atualizar o status.");
+    }
   };
 
   return (
@@ -478,9 +604,11 @@ function StatusDialog({
 
 function EditarDialog({ itemId }: { itemId: string }) {
   const { itens } = useStore();
+  const { canManageInventory } = useAccessControl();
   const [open, setOpen] = useState(false);
   const item = itens.find((i) => i.id === itemId);
   if (!item) return null;
+  if (!canManageInventory) return null;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>

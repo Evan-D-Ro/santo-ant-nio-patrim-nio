@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as ManutencoesRouteImport } from './routes/manutencoes'
 import { Route as CategoriasRouteImport } from './routes/categorias'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ItensIndexRouteImport } from './routes/itens.index'
 import { Route as ItensItemIdRouteImport } from './routes/itens.$itemId'
@@ -29,6 +30,11 @@ const ManutencoesRoute = ManutencoesRouteImport.update({
 const CategoriasRoute = CategoriasRouteImport.update({
   id: '/categorias',
   path: '/categorias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -49,6 +55,7 @@ const ItensItemIdRoute = ItensItemIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/categorias': typeof CategoriasRoute
   '/manutencoes': typeof ManutencoesRoute
   '/relatorios': typeof RelatoriosRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/categorias': typeof CategoriasRoute
   '/manutencoes': typeof ManutencoesRoute
   '/relatorios': typeof RelatoriosRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/categorias': typeof CategoriasRoute
   '/manutencoes': typeof ManutencoesRoute
   '/relatorios': typeof RelatoriosRoute
@@ -76,6 +85,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth'
     | '/categorias'
     | '/manutencoes'
     | '/relatorios'
@@ -84,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/auth'
     | '/categorias'
     | '/manutencoes'
     | '/relatorios'
@@ -92,6 +103,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/auth'
     | '/categorias'
     | '/manutencoes'
     | '/relatorios'
@@ -101,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthRoute: typeof AuthRoute
   CategoriasRoute: typeof CategoriasRoute
   ManutencoesRoute: typeof ManutencoesRoute
   RelatoriosRoute: typeof RelatoriosRoute
@@ -131,6 +144,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CategoriasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -157,6 +177,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthRoute: AuthRoute,
   CategoriasRoute: CategoriasRoute,
   ManutencoesRoute: ManutencoesRoute,
   RelatoriosRoute: RelatoriosRoute,

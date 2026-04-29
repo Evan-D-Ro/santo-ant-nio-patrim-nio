@@ -7,10 +7,10 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import { useStore, formatBRL, formatDate } from "@/lib/store";
 import { ManutencaoStatusBadge } from "@/components/Badges";
 import type { StatusManutencao } from "@/lib/types";
+import { useAccessControl } from "@/hooks/use-access-control";
 
 export const Route = createFileRoute("/manutencoes")({
   head: () => ({ meta: [{ title: "Manutenções • Patrimônio" }] }),
@@ -19,6 +19,7 @@ export const Route = createFileRoute("/manutencoes")({
 
 function ManutencoesPage() {
   const { manutencoes, itens, updateManutencao } = useStore();
+  const { canManageInventory } = useAccessControl();
   const [filtro, setFiltro] = useState<string>("todos");
 
   const list = useMemo(() => {
@@ -86,17 +87,27 @@ function ManutencoesPage() {
                     <TableCell className="text-right text-sm">{formatBRL(m.custo)}</TableCell>
                     <TableCell><ManutencaoStatusBadge status={m.status} /></TableCell>
                     <TableCell className="text-right">
-                      <Select
-                        value={m.status}
-                        onValueChange={(v) => updateManutencao(m.id, { status: v as StatusManutencao })}
-                      >
-                        <SelectTrigger className="h-8 w-36 ml-auto"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Pendente">Pendente</SelectItem>
-                          <SelectItem value="Em andamento">Em andamento</SelectItem>
-                          <SelectItem value="Concluído">Concluído</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {canManageInventory ? (
+                        <Select
+                          value={m.status}
+                          onValueChange={async (v) => {
+                            try {
+                              await updateManutencao(m.id, { status: v as StatusManutencao });
+                            } catch (error) {
+                              console.error(error);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-36 ml-auto"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Pendente">Pendente</SelectItem>
+                            <SelectItem value="Em andamento">Em andamento</SelectItem>
+                            <SelectItem value="Concluído">Concluído</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Somente consulta</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

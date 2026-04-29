@@ -1,9 +1,16 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { useEffect } from "react";
+import type { ReactNode } from "react";
+import { Outlet, Link, createRootRoute, HeadContent, Scripts, useNavigate, useRouterState } from "@tanstack/react-router";
 import appCss from "../styles.css?url";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { StoreProvider } from "@/lib/store";
+import { StoreProvider, useStore } from "@/lib/store";
 import { Toaster } from "@/components/ui/sonner";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, LogOut, ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { AccessControlProvider, useAccessControl } from "@/hooks/use-access-control";
 
 function NotFoundComponent() {
   return (
@@ -54,7 +61,7 @@ export const Route = createRootRoute({
   notFoundComponent: NotFoundComponent,
 });
 
-function RootShell({ children }: { children: React.ReactNode }) {
+function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR">
       <head>
@@ -70,18 +77,98 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   return (
+    <AccessControlProvider>
+      <RootFrame />
+    </AccessControlProvider>
+  );
+}
+
+function RootFrame() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const navigate = useNavigate();
+  const { session, loading } = useAccessControl();
+  const isAuthRoute = pathname === "/auth";
+  const needsRedirect = !loading && ((!session && !isAuthRoute) || (session && isAuthRoute));
+
+  useEffect(() => {
+    if (loading) return;
+    if (!session && !isAuthRoute) {
+      void navigate({ to: "/auth", replace: true });
+      return;
+    }
+    if (session && isAuthRoute) {
+      void navigate({ to: "/", replace: true });
+    }
+  }, [loading, session, isAuthRoute, navigate]);
+
+  if (loading || needsRedirect) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <>
+        <Outlet />
+        <Toaster richColors position="top-right" />
+      </>
+    );
+  }
+
+  return (
     <StoreProvider>
+      <InventoryShell />
+    </StoreProvider>
+  );
+}
+
+function InventoryShell() {
+  const { loading } = useStore();
+  const { canManageInventory } = useAccessControl();
+  const navigate = useNavigate();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <>
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-background">
           <AppSidebar />
           <div className="flex-1 flex flex-col min-w-0">
             <header className="h-14 flex items-center gap-3 border-b bg-card px-4 sticky top-0 z-10">
               <SidebarTrigger />
-              <div className="font-display font-semibold text-lg">
-                Sistema de Patrimônio
-              </div>
-              <div className="ml-auto text-xs text-muted-foreground hidden sm:block">
-                Paróquia Santo Antônio • Rancharia / SP
+              <div className="font-display font-semibold text-lg">Sistema de Patrimônio</div>
+              <div className="ml-auto flex items-center gap-3">
+                {!canManageInventory && (
+                  <Badge variant="secondary" className="gap-1.5">
+                    <ShieldAlert className="h-3.5 w-3.5" />
+                    Consulta
+                  </Badge>
+                )}
+                <div className="text-xs text-muted-foreground hidden sm:block">
+                  Paróquia Santo Antônio • Rancharia / SP
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2"
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    await navigate({ to: "/auth", replace: true });
+                  }}
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sair
+                </Button>
               </div>
             </header>
             <main className="flex-1 p-6">
@@ -91,6 +178,6 @@ function RootComponent() {
         </div>
         <Toaster richColors position="top-right" />
       </SidebarProvider>
-    </StoreProvider>
+    </>
   );
 }

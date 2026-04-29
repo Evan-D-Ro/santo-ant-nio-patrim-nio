@@ -19,6 +19,7 @@ import { useStore, formatBRL } from "@/lib/store";
 import { LOCAIS, type EstadoConservacao, type StatusItem } from "@/lib/types";
 import { EstadoBadge, StatusBadge } from "@/components/Badges";
 import { ItemForm } from "@/components/ItemForm";
+import { useAccessControl } from "@/hooks/use-access-control";
 import {
   Plus, Search, ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon, ImageOff,
 } from "lucide-react";
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/itens/")({
 
 function ItensPage() {
   const { itens, categorias } = useStore();
+  const { canManageInventory } = useAccessControl();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("todas");
   const [local, setLocal] = useState<string>("todos");
@@ -73,15 +75,17 @@ function ItensPage() {
             Gerencie todo o patrimônio cadastrado.
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" /> Adicionar Item</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Novo item de patrimônio</DialogTitle></DialogHeader>
-            <ItemForm onDone={() => setOpen(false)} />
-          </DialogContent>
-        </Dialog>
+        {canManageInventory ? (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2"><Plus className="h-4 w-4" /> Adicionar Item</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>Novo item de patrimônio</DialogTitle></DialogHeader>
+              <ItemForm onDone={() => setOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        ) : null}
       </div>
 
       <Card>
@@ -167,6 +171,7 @@ function ItensPage() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {slice.map((i) => {
                   const c = categorias.find((x) => x.id === i.categoriaId);
+                  const previewUrl = i.fotoUrl ?? i.documentos.find((d) => d.tipo === "Foto")?.url;
                   return (
                     <Link
                       key={i.id}
@@ -175,9 +180,9 @@ function ItensPage() {
                       className="group rounded-lg border bg-card overflow-hidden hover:shadow-md hover:border-primary/40 transition"
                     >
                       <div className="aspect-[4/3] bg-muted relative overflow-hidden">
-                        {i.fotoUrl ? (
+                        {previewUrl ? (
                           <img
-                            src={i.fotoUrl}
+                            src={i.updatedAt ? `${previewUrl}${previewUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(i.updatedAt)}` : previewUrl}
                             alt={i.nome}
                             loading="lazy"
                             className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"

@@ -1,4 +1,5 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+﻿import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import type {
   Categoria,
   Item,
@@ -6,6 +7,7 @@ import type {
   Movimentacao,
   StatusItem,
   AcaoHistorico,
+  DocumentoMidia,
 } from "./types";
 
 const uid = () =>
@@ -14,203 +16,287 @@ const uid = () =>
     : Math.random().toString(36).slice(2);
 
 const now = () => new Date().toISOString();
+const db = () => supabase as any;
 
-const seedCategorias: Categoria[] = [
-  { id: "c1", nome: "Litúrgicos", descricao: "Objetos sagrados e paramentos" },
-  { id: "c2", nome: "Móveis", descricao: "Mobiliário em geral" },
-  { id: "c3", nome: "Eletrônicos", descricao: "Áudio, vídeo, projetores" },
-  { id: "c4", nome: "Informática", descricao: "Computadores e periféricos" },
-  { id: "c5", nome: "Instrumentos Musicais", descricao: "Instrumentos da pastoral" },
-];
+function stripUndefined<T extends Record<string, unknown>>(obj: T) {
+  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
+}
 
-const seedItens: Item[] = [
-  {
-    id: "i1",
-    nome: "Cálice em prata",
-    descricao: "Cálice usado nas celebrações dominicais",
-    categoriaId: "c1",
-    quantidade: 2,
-    numeroPatrimonio: "PSA-0001",
-    dataRegistro: "2023-03-12",
-    valorAproximado: 4500,
-    estadoConservacao: "Bom",
-    status: "Em uso",
-    marca: "—",
-    modelo: "—",
-    equipamentoGeral: false,
-    localAtual: "Sacristia",
-    documentos: [],
-    historico: [
-      { id: uid(), data: "2023-03-12T10:00:00Z", acao: "Cadastro inicial", responsavel: "Pe. João" },
-    ],
-  },
-  {
-    id: "i2",
-    nome: "Projetor Epson",
-    descricao: "Projetor para eventos no salão",
-    categoriaId: "c3",
-    quantidade: 1,
-    numeroPatrimonio: "PSA-0014",
-    dataRegistro: "2024-06-01",
-    valorAproximado: 3200,
-    estadoConservacao: "Novo",
-    status: "Em uso",
-    marca: "Epson",
-    modelo: "PowerLite X49",
-    equipamentoGeral: true,
-    localAtual: "Salão Paroquial",
-    documentos: [],
-    historico: [
-      { id: uid(), data: "2024-06-01T09:00:00Z", acao: "Cadastro inicial", responsavel: "Secretaria" },
-    ],
-  },
-  {
-    id: "i3",
-    nome: "Notebook Dell",
-    descricao: "Uso administrativo da secretaria",
-    categoriaId: "c4",
-    quantidade: 1,
-    numeroPatrimonio: "PSA-0021",
-    dataRegistro: "2024-01-20",
-    valorAproximado: 4800,
-    estadoConservacao: "Bom",
-    status: "Em manutenção",
-    marca: "Dell",
-    modelo: "Inspiron 15",
-    equipamentoGeral: false,
-    localAtual: "Secretaria Paroquial",
-    documentos: [],
-    historico: [
-      { id: uid(), data: "2024-01-20T08:00:00Z", acao: "Cadastro inicial", responsavel: "Maria" },
-      { id: uid(), data: "2025-02-10T14:00:00Z", acao: "Enviado para manutenção", responsavel: "Maria" },
-    ],
-  },
-  {
-    id: "i4",
-    nome: "Bancos de madeira",
-    descricao: "Bancos longos da nave central",
-    categoriaId: "c2",
-    quantidade: 24,
-    numeroPatrimonio: "PSA-0030",
-    dataRegistro: "2020-11-05",
-    valorAproximado: 18000,
-    estadoConservacao: "Regular",
-    status: "Em uso",
-    equipamentoGeral: false,
-    localAtual: "Igreja Matriz",
-    documentos: [],
-    historico: [],
-  },
-  {
-    id: "i5",
-    nome: "Violão acústico",
-    descricao: "Pastoral da Música",
-    categoriaId: "c5",
-    quantidade: 1,
-    numeroPatrimonio: "PSA-0042",
-    dataRegistro: "2023-09-15",
-    valorAproximado: 1200,
-    estadoConservacao: "Bom",
-    status: "Em uso",
-    marca: "Yamaha",
-    modelo: "C40",
-    equipamentoGeral: true,
-    localAtual: "Salão Paroquial",
-    documentos: [],
-    historico: [],
-  },
-];
+function storagePathFromPublicUrl(url: string) {
+  const marker = "/storage/v1/object/public/item-files/";
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  return decodeURIComponent(url.slice(idx + marker.length));
+}
 
-const seedMovimentacoes: Movimentacao[] = [
-  {
-    id: "m1",
-    itemId: "i2",
-    data: "2025-04-20T10:00:00Z",
-    origem: "Almoxarifado",
-    destino: "Salão Paroquial",
-    responsavel: "Diác. Carlos",
-    motivo: "Encontro de catequistas",
-  },
-  {
-    id: "m2",
-    itemId: "i5",
-    data: "2025-04-22T18:30:00Z",
-    origem: "Casa Paroquial",
-    destino: "Salão Paroquial",
-    responsavel: "Ana (Pastoral Música)",
-    motivo: "Ensaio do coral",
-  },
-];
+function cacheBustUrl(url?: string, version?: string) {
+  if (!url) return undefined;
+  if (!version) return url;
+  const joiner = url.includes("?") ? "&" : "?";
+  return `${url}${joiner}v=${encodeURIComponent(version)}`;
+}
 
-const seedManutencoes: Manutencao[] = [
-  {
-    id: "mt1",
-    itemId: "i3",
-    tipo: "Corretiva",
-    descricao: "Tela apresentando linhas verticais",
-    data: "2025-02-10",
-    custo: 450,
-    fornecedor: "Tech Rancharia",
-    status: "Em andamento",
-  },
-  {
-    id: "mt2",
-    itemId: "i4",
-    tipo: "Preventiva",
-    descricao: "Lustração e reaperto",
-    data: "2025-05-05",
-    custo: 0,
-    fornecedor: "Mutirão paroquial",
-    status: "Pendente",
-  },
-];
+type ItemRow = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  categoria_id: string;
+  quantidade: number;
+  numero_patrimonio: string | null;
+  data_registro: string;
+  valor_aproximado: number;
+  estado_conservacao: string;
+  status: string;
+  marca: string | null;
+  modelo: string | null;
+  equipamento_geral: boolean;
+  local_atual: string;
+  foto_url: string | null;
+  updated_at: string;
+};
+type CategoriaRow = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+};
+type DocumentoRow = { id: string; item_id: string; tipo: string; nome: string; url: string };
+type HistoricoRow = {
+  id: string;
+  item_id: string;
+  data: string;
+  acao: string;
+  responsavel: string;
+  observacao: string | null;
+};
+type MovimentacaoRow = {
+  id: string;
+  item_id: string;
+  data: string;
+  origem: string;
+  destino: string;
+  responsavel: string;
+  motivo: string;
+};
+type ManutencaoRow = {
+  id: string;
+  item_id: string;
+  tipo: string;
+  descricao: string;
+  data: string;
+  custo: number;
+  fornecedor: string;
+  status: string;
+};
+
+type StoreSnapshot = {
+  categorias: Categoria[];
+  itens: Item[];
+  movimentacoes: Movimentacao[];
+  manutencoes: Manutencao[];
+};
+
+function mapItem(
+  row: ItemRow,
+  documentos: DocumentoRow[],
+  historico: HistoricoRow[],
+): Item {
+  return {
+    id: row.id,
+    nome: row.nome,
+    descricao: row.descricao ?? undefined,
+    categoriaId: row.categoria_id,
+    quantidade: row.quantidade,
+    numeroPatrimonio: row.numero_patrimonio ?? undefined,
+    dataRegistro: row.data_registro,
+    valorAproximado: Number(row.valor_aproximado),
+    estadoConservacao: row.estado_conservacao as Item["estadoConservacao"],
+    status: row.status as Item["status"],
+    marca: row.marca ?? undefined,
+    modelo: row.modelo ?? undefined,
+    equipamentoGeral: row.equipamento_geral,
+    localAtual: row.local_atual,
+    fotoUrl: row.foto_url ?? undefined,
+    updatedAt: row.updated_at,
+    documentos: documentos.map((doc) => ({
+      id: doc.id,
+      tipo: doc.tipo as DocumentoMidia["tipo"],
+      nome: doc.nome,
+      url: doc.url,
+    })),
+    historico: historico.map((h) => ({
+      id: h.id,
+      data: h.data,
+      acao: h.acao,
+      responsavel: h.responsavel,
+      observacao: h.observacao ?? undefined,
+    })),
+  };
+}
+
+async function loadStoreSnapshot() {
+  const client = db();
+  const [categoriasRes, itensRes, docsRes, histRes, movRes, manRes] = await Promise.all([
+    client.from("categorias").select("*"),
+    client.from("itens").select("*"),
+    client.from("item_documentos").select("*"),
+    client.from("item_historico").select("*"),
+    client.from("movimentacoes").select("*"),
+    client.from("manutencoes").select("*"),
+  ]);
+
+  const error = categoriasRes.error ?? itensRes.error ?? docsRes.error ?? histRes.error ?? movRes.error ?? manRes.error;
+  if (error) throw error;
+
+  const docsByItem = new Map<string, DocumentoRow[]>();
+  for (const doc of docsRes.data ?? []) {
+    const row = doc as DocumentoRow;
+    const list = docsByItem.get(row.item_id) ?? [];
+    list.push(row);
+    docsByItem.set(row.item_id, list);
+  }
+
+  const histByItem = new Map<string, HistoricoRow[]>();
+  for (const hist of histRes.data ?? []) {
+    const row = hist as HistoricoRow;
+    const list = histByItem.get(row.item_id) ?? [];
+    list.push(row);
+    histByItem.set(row.item_id, list);
+  }
+
+  return {
+    categorias: (categoriasRes.data ?? []).map((c: CategoriaRow) => c as Categoria),
+    itens: (itensRes.data ?? []).map((row: ItemRow) =>
+      mapItem(
+        row,
+        docsByItem.get(row.id) ?? [],
+        histByItem.get(row.id) ?? [],
+      ),
+    ),
+    movimentacoes: (movRes.data ?? []).map((m: MovimentacaoRow) => {
+      const row = m as MovimentacaoRow;
+      return {
+        id: row.id,
+        itemId: row.item_id,
+        data: row.data,
+        origem: row.origem,
+        destino: row.destino,
+        responsavel: row.responsavel,
+        motivo: row.motivo,
+      };
+    }),
+    manutencoes: (manRes.data ?? []).map((m: ManutencaoRow) => {
+      const row = m as ManutencaoRow;
+      return {
+        id: row.id,
+        itemId: row.item_id,
+        tipo: row.tipo as Manutencao["tipo"],
+        descricao: row.descricao,
+        data: row.data,
+        custo: Number(row.custo),
+        fornecedor: row.fornecedor,
+        status: row.status as Manutencao["status"],
+      };
+    }),
+  } satisfies StoreSnapshot;
+}
 
 interface StoreCtx {
+  loading: boolean;
   categorias: Categoria[];
   itens: Item[];
   movimentacoes: Movimentacao[];
   manutencoes: Manutencao[];
   // categorias
-  addCategoria: (c: Omit<Categoria, "id">) => void;
-  updateCategoria: (id: string, c: Partial<Categoria>) => void;
-  deleteCategoria: (id: string) => void;
+  addCategoria: (c: Omit<Categoria, "id">) => Promise<Categoria>;
+  updateCategoria: (id: string, c: Partial<Categoria>) => Promise<void>;
+  deleteCategoria: (id: string) => Promise<void>;
   // itens
-  addItem: (i: Omit<Item, "id" | "documentos" | "historico" | "dataRegistro"> & { dataRegistro?: string }) => Item;
-  updateItem: (id: string, patch: Partial<Item>) => void;
-  deleteItem: (id: string) => void;
-  changeStatus: (id: string, status: StatusItem, responsavel: string, observacao?: string) => void;
-  appendHistorico: (id: string, acao: AcaoHistorico) => void;
+  addItem: (i: Omit<Item, "id" | "documentos" | "historico" | "dataRegistro"> & { dataRegistro?: string }) => Promise<Item>;
+  updateItem: (id: string, patch: Partial<Item>) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
+  changeStatus: (id: string, status: StatusItem, responsavel: string, observacao?: string) => Promise<void>;
+  appendHistorico: (id: string, acao: AcaoHistorico) => Promise<void>;
   // documentos
-  addDocumento: (itemId: string, doc: Omit<import("./types").DocumentoMidia, "id">) => void;
-  removeDocumento: (itemId: string, docId: string) => void;
-  setFoto: (itemId: string, url: string) => void;
-  // movimentação
-  registrarMovimentacao: (m: Omit<Movimentacao, "id" | "data"> & { data?: string }) => void;
-  // manutenção
-  registrarManutencao: (m: Omit<Manutencao, "id">) => void;
-  updateManutencao: (id: string, patch: Partial<Manutencao>) => void;
+  addDocumento: (itemId: string, doc: Omit<import("./types").DocumentoMidia, "id">) => Promise<void>;
+  removeDocumento: (itemId: string, docId: string) => Promise<void>;
+  setFoto: (itemId: string, url: string) => Promise<void>;
+  // movimentaÃ§Ã£o
+  registrarMovimentacao: (m: Omit<Movimentacao, "id" | "data"> & { data?: string }) => Promise<void>;
+  // manutenÃ§Ã£o
+  registrarManutencao: (m: Omit<Manutencao, "id">) => Promise<void>;
+  updateManutencao: (id: string, patch: Partial<Manutencao>) => Promise<void>;
 }
 
 const Ctx = createContext<StoreCtx | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [categorias, setCategorias] = useState<Categoria[]>(seedCategorias);
-  const [itens, setItens] = useState<Item[]>(seedItens);
-  const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>(seedMovimentacoes);
-  const [manutencoes, setManutencoes] = useState<Manutencao[]>(seedManutencoes);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [itens, setItens] = useState<Item[]>([]);
+  const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>([]);
+  const [manutencoes, setManutencoes] = useState<Manutencao[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const syncFromDb = async () => {
+    const snapshot = await loadStoreSnapshot();
+    setCategorias(snapshot.categorias);
+    setItens(snapshot.itens);
+    setMovimentacoes(snapshot.movimentacoes);
+    setManutencoes(snapshot.manutencoes);
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    void (async () => {
+      try {
+        await syncFromDb();
+        if (!active) return;
+        setLoading(false);
+      } catch (error) {
+        if (!active) return;
+        console.error(error);
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const value = useMemo<StoreCtx>(
     () => ({
+      loading,
       categorias,
       itens,
       movimentacoes,
       manutencoes,
-      addCategoria: (c) => setCategorias((p) => [...p, { ...c, id: uid() }]),
-      updateCategoria: (id, c) =>
-        setCategorias((p) => p.map((x) => (x.id === id ? { ...x, ...c } : x))),
-      deleteCategoria: (id) => setCategorias((p) => p.filter((x) => x.id !== id)),
+      addCategoria: async (c) => {
+        const item = { ...c, id: uid() } as Categoria;
+        const { error } = await db().from("categorias").insert({
+          id: item.id,
+          nome: item.nome,
+          descricao: item.descricao ?? null,
+        });
+        if (error) throw error;
+        await syncFromDb();
+        return item;
+      },
+      updateCategoria: async (id, c) => {
+        const { error } = await db().from("categorias").update(stripUndefined({
+          nome: c.nome,
+          descricao: c.descricao ?? null,
+        })).eq("id", id);
+        if (error) throw error;
+        await syncFromDb();
+      },
+      deleteCategoria: async (id) => {
+        const { error } = await db().from("categorias").delete().eq("id", id);
+        if (error) throw error;
+        await syncFromDb();
+      },
 
-      addItem: (data) => {
+      addItem: async (data) => {
         const item: Item = {
           ...data,
           id: uid(),
@@ -220,152 +306,273 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             { id: uid(), data: now(), acao: "Cadastro do item", responsavel: "Sistema" },
           ],
         };
-        setItens((p) => [item, ...p]);
+        const client = db();
+        const { error: itemError } = await client.from("itens").insert({
+          id: item.id,
+          nome: item.nome,
+          descricao: item.descricao ?? null,
+          categoria_id: item.categoriaId,
+          quantidade: item.quantidade,
+          numero_patrimonio: item.numeroPatrimonio ?? null,
+          data_registro: item.dataRegistro,
+          valor_aproximado: item.valorAproximado,
+          estado_conservacao: item.estadoConservacao,
+          status: item.status,
+          marca: item.marca ?? null,
+          modelo: item.modelo ?? null,
+          equipamento_geral: item.equipamentoGeral,
+          local_atual: item.localAtual,
+          foto_url: item.fotoUrl ?? null,
+          updated_at: item.updatedAt ?? now(),
+        });
+        if (itemError) throw itemError;
+        const { error: histError } = await client.from("item_historico").insert({
+          id: item.historico[0]?.id ?? uid(),
+          item_id: item.id,
+          data: item.historico[0]?.data ?? now(),
+          acao: item.historico[0]?.acao ?? "Cadastro do item",
+          responsavel: item.historico[0]?.responsavel ?? "Sistema",
+          observacao: item.historico[0]?.observacao ?? null,
+        });
+        if (histError) throw histError;
+        await syncFromDb();
         return item;
       },
-      updateItem: (id, patch) =>
-        setItens((p) => p.map((x) => (x.id === id ? { ...x, ...patch } : x))),
-      deleteItem: (id) => setItens((p) => p.filter((x) => x.id !== id)),
-
-      changeStatus: (id, status, responsavel, observacao) =>
-        setItens((p) =>
-          p.map((x) =>
-            x.id === id
-              ? {
-                  ...x,
-                  status,
-                  historico: [
-                    ...x.historico,
-                    {
-                      id: uid(),
-                      data: now(),
-                      acao: `Status alterado para "${status}"`,
-                      responsavel,
-                      observacao,
-                    },
-                  ],
-                }
-              : x,
-          ),
-        ),
-
-
-      addDocumento: (itemId, doc) =>
-        setItens((p) =>
-          p.map((x) =>
-            x.id === itemId
-              ? {
-                  ...x,
-                  documentos: [...x.documentos, { ...doc, id: uid() }],
-                  historico: [
-                    ...x.historico,
-                    { id: uid(), data: now(), acao: `Documento "${doc.nome}" anexado`, responsavel: "Sistema" },
-                  ],
-                }
-              : x,
-          ),
-        ),
-
-      removeDocumento: (itemId, docId) =>
-        setItens((p) =>
-          p.map((x) =>
-            x.id === itemId
-              ? { ...x, documentos: x.documentos.filter((d) => d.id !== docId) }
-              : x,
-          ),
-        ),
-
-      setFoto: (itemId, url) =>
-        setItens((p) =>
-          p.map((x) =>
-            x.id === itemId
-              ? {
-                  ...x,
-                  fotoUrl: url,
-                  historico: [
-                    ...x.historico,
-                    { id: uid(), data: now(), acao: "Foto principal atualizada", responsavel: "Sistema" },
-                  ],
-                }
-              : x,
-          ),
-        ),
-
-      appendHistorico: (id, acao) =>
-        setItens((p) =>
-          p.map((x) => (x.id === id ? { ...x, historico: [...x.historico, acao] } : x)),
-        ),
-
-      registrarMovimentacao: (m) => {
-        const mov: Movimentacao = { ...m, id: uid(), data: m.data ?? now() };
-        setMovimentacoes((p) => [mov, ...p]);
-        setItens((p) =>
-          p.map((x) =>
-            x.id === m.itemId
-              ? {
-                  ...x,
-                  localAtual: m.destino,
-                  historico: [
-                    ...x.historico,
-                    {
-                      id: uid(),
-                      data: mov.data,
-                      acao: `Movido de ${m.origem} para ${m.destino}`,
-                      responsavel: m.responsavel,
-                      observacao: m.motivo,
-                    },
-                  ],
-                }
-              : x,
-          ),
-        );
+      updateItem: async (id, patch) => {
+        const { error } = await db().from("itens").update(stripUndefined({
+          nome: patch.nome,
+          descricao: patch.descricao ?? null,
+          categoria_id: patch.categoriaId,
+          quantidade: patch.quantidade,
+          numero_patrimonio: patch.numeroPatrimonio ?? null,
+          data_registro: patch.dataRegistro,
+          valor_aproximado: patch.valorAproximado,
+          estado_conservacao: patch.estadoConservacao,
+          status: patch.status,
+          marca: patch.marca ?? null,
+          modelo: patch.modelo ?? null,
+          equipamento_geral: patch.equipamentoGeral,
+          local_atual: patch.localAtual,
+          foto_url: patch.fotoUrl ?? null,
+          updated_at: now(),
+        })).eq("id", id);
+        if (error) throw error;
+        await syncFromDb();
+      },
+      deleteItem: async (id) => {
+        const { data: docs, error: docsError } = await db()
+          .from("item_documentos")
+          .select("url")
+          .eq("item_id", id);
+        if (docsError) throw docsError;
+        const typedDocs = (docs ?? []) as Array<{ url: string }>;
+        const paths = typedDocs
+          .map((doc) => storagePathFromPublicUrl(doc.url))
+          .filter((path): path is string => Boolean(path));
+        if (paths.length > 0) {
+          const { error: storageError } = await db().storage.from("item-files").remove(paths);
+          if (storageError) throw storageError;
+        }
+        const { error } = await db().from("itens").delete().eq("id", id);
+        if (error) throw error;
+        await syncFromDb();
       },
 
-      registrarManutencao: (m) => {
-        const mt: Manutencao = { ...m, id: uid() };
-        setManutencoes((p) => [mt, ...p]);
-        setItens((p) =>
-          p.map((x) =>
-            x.id === m.itemId
-              ? {
-                  ...x,
-                  status: m.status === "Em andamento" ? "Em manutenção" : x.status,
-                  historico: [
-                    ...x.historico,
-                    {
-                      id: uid(),
-                      data: now(),
-                      acao: `Manutenção ${m.tipo.toLowerCase()} registrada (${m.status})`,
-                      responsavel: m.fornecedor,
-                      observacao: m.descricao,
-                    },
-                  ],
-                }
-              : x,
-          ),
-        );
-      },
-
-      updateManutencao: (id, patch) => {
-        setManutencoes((prev) => {
-          const next = prev.map((x) => (x.id === id ? { ...x, ...patch } : x));
-          const updated = next.find((x) => x.id === id);
-          if (updated && patch.status) {
-            setItens((items) =>
-              items.map((it) => {
-                if (it.id !== updated.itemId) return it;
-                if (patch.status === "Em andamento") return { ...it, status: "Em manutenção" };
-                if (patch.status === "Concluído" && it.status === "Em manutenção")
-                  return { ...it, status: "Em uso" };
-                return it;
-              }),
-            );
-          }
-          return next;
+      changeStatus: async (id, status, responsavel, observacao) => {
+        const history = {
+          id: uid(),
+          data: now(),
+          acao: `Status alterado para "${status}"`,
+          responsavel,
+          observacao,
+        };
+        const client = db();
+        const { error: itemError } = await client.from("itens").update({ status, updated_at: now() }).eq("id", id);
+        if (itemError) throw itemError;
+        const { error: histError } = await client.from("item_historico").insert({
+          id: history.id,
+          item_id: id,
+          data: history.data,
+          acao: history.acao,
+          responsavel: history.responsavel,
+          observacao: history.observacao ?? null,
         });
+        if (histError) throw histError;
+        await syncFromDb();
+      },
+
+
+      addDocumento: async (itemId, doc) => {
+        const savedDoc = { ...doc, id: uid() };
+        const history = {
+          id: uid(),
+          data: now(),
+          acao: `Documento "${doc.nome}" anexado`,
+          responsavel: "Sistema",
+        };
+        const client = db();
+        const { error: docError } = await client.from("item_documentos").insert({
+          id: savedDoc.id,
+          item_id: itemId,
+          tipo: savedDoc.tipo,
+          nome: savedDoc.nome,
+          url: savedDoc.url,
+        });
+        if (docError) throw docError;
+        const { error: histError } = await client.from("item_historico").insert({
+          id: history.id,
+          item_id: itemId,
+          data: history.data,
+          acao: history.acao,
+          responsavel: history.responsavel,
+          observacao: null,
+        });
+        if (histError) throw histError;
+        await syncFromDb();
+      },
+
+      removeDocumento: async (itemId, docId) => {
+        const { data: doc, error: docError } = await db()
+          .from("item_documentos")
+          .select("url")
+          .eq("id", docId)
+          .maybeSingle();
+        if (docError) throw docError;
+        const path = doc?.url ? storagePathFromPublicUrl(doc.url) : null;
+        if (path) {
+          const { error: storageError } = await db().storage.from("item-files").remove([path]);
+          if (storageError) throw storageError;
+        }
+        const { error } = await db().from("item_documentos").delete().eq("id", docId);
+        if (error) throw error;
+        const item = itens.find((x) => x.id === itemId);
+        if (item?.fotoUrl && doc?.url === item.fotoUrl) {
+          const remainingPhoto = item.documentos.find((d) => d.tipo === "Foto" && d.id !== docId)?.url ?? null;
+          const { error: itemError } = await db()
+            .from("itens")
+            .update({
+              foto_url: remainingPhoto,
+              updated_at: now(),
+            })
+            .eq("id", itemId);
+          if (itemError) throw itemError;
+        }
+        await syncFromDb();
+      },
+
+      setFoto: async (itemId, url) => {
+        const history = {
+          id: uid(),
+          data: now(),
+          acao: "Foto principal atualizada",
+          responsavel: "Sistema",
+        };
+        const client = db();
+        const { error: itemError } = await client.from("itens").update({ foto_url: url, updated_at: now() }).eq("id", itemId);
+        if (itemError) throw itemError;
+        const { error: histError } = await client.from("item_historico").insert({
+          id: history.id,
+          item_id: itemId,
+          data: history.data,
+          acao: history.acao,
+          responsavel: history.responsavel,
+          observacao: null,
+        });
+        if (histError) throw histError;
+        await syncFromDb();
+      },
+
+      appendHistorico: async (id, acao) => {
+        const { error } = await db().from("item_historico").insert({
+          id: acao.id,
+          item_id: id,
+          data: acao.data,
+          acao: acao.acao,
+          responsavel: acao.responsavel,
+          observacao: acao.observacao ?? null,
+        });
+        if (error) throw error;
+        await syncFromDb();
+      },
+
+      registrarMovimentacao: async (m) => {
+        const mov: Movimentacao = { ...m, id: uid(), data: m.data ?? now() };
+        const client = db();
+        const { error: itemError } = await client.from("itens").update({ local_atual: m.destino, updated_at: now() }).eq("id", m.itemId);
+        if (itemError) throw itemError;
+        const { error: movError } = await client.from("movimentacoes").insert({
+          id: mov.id,
+          item_id: mov.itemId,
+          data: mov.data,
+          origem: mov.origem,
+          destino: mov.destino,
+          responsavel: mov.responsavel,
+          motivo: mov.motivo,
+        });
+        if (movError) throw movError;
+        const { error: histError } = await client.from("item_historico").insert({
+          id: uid(),
+          item_id: mov.itemId,
+          data: mov.data,
+          acao: `Movido de ${m.origem} para ${m.destino}`,
+          responsavel: m.responsavel,
+          observacao: m.motivo,
+        });
+        if (histError) throw histError;
+        await syncFromDb();
+      },
+
+      registrarManutencao: async (m) => {
+        const mt: Manutencao = { ...m, id: uid() };
+        const client = db();
+        if (m.status === "Em andamento") {
+          const { error: itemError } = await client.from("itens").update({ status: "Em manutenção", updated_at: now() }).eq("id", m.itemId);
+          if (itemError) throw itemError;
+        }
+        const { error: manError } = await client.from("manutencoes").insert({
+          id: mt.id,
+          item_id: mt.itemId,
+          tipo: mt.tipo,
+          descricao: mt.descricao,
+          data: mt.data,
+          custo: mt.custo,
+          fornecedor: mt.fornecedor,
+          status: mt.status,
+        });
+        if (manError) throw manError;
+        await syncFromDb();
+      },
+
+      updateManutencao: async (id, patch) => {
+        const current = manutencoes.find((x) => x.id === id);
+        if (!current) return;
+        const client = db();
+        if (patch.status) {
+          const currentItem = itens.find((it) => it.id === current.itemId);
+          const nextItemStatus =
+            patch.status === "Em andamento"
+              ? "Em manutenção"
+              : patch.status === "Concluído" && currentItem?.status === "Em manutenção"
+                ? "Em uso"
+                : undefined;
+          if (nextItemStatus) {
+            const { error: itemError } = await client.from("itens").update({ status: nextItemStatus, updated_at: now() }).eq("id", current.itemId);
+            if (itemError) throw itemError;
+          }
+        }
+        const { error } = await client.from("manutencoes").update(stripUndefined({
+          tipo: patch.tipo,
+          descricao: patch.descricao,
+          data: patch.data,
+          custo: patch.custo,
+          fornecedor: patch.fornecedor,
+          status: patch.status,
+        })).eq("id", id);
+        if (error) throw error;
+        await syncFromDb();
       },
     }),
-    [categorias, itens, movimentacoes, manutencoes],
+    [loading, categorias, itens, movimentacoes, manutencoes],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -385,3 +592,6 @@ export const formatDate = (iso: string) =>
 
 export const formatDateTime = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+
+
+

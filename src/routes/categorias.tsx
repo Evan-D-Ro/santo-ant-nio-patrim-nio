@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { useStore } from "@/lib/store";
+import { useAccessControl } from "@/hooks/use-access-control";
 import { Plus, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import type { Categoria } from "@/lib/types";
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/categorias")({
 
 function CategoriasPage() {
   const { categorias, itens, addCategoria, updateCategoria, deleteCategoria } = useStore();
+  const { canManageInventory } = useAccessControl();
   const [editing, setEditing] = useState<Categoria | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -33,32 +35,34 @@ function CategoriasPage() {
           <h1 className="text-2xl font-display font-semibold">Categorias</h1>
           <p className="text-sm text-muted-foreground">Organize os itens por tipo.</p>
         </div>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" onClick={() => setEditing(null)}>
-              <Plus className="h-4 w-4" /> Nova categoria
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editing ? "Editar categoria" : "Nova categoria"}</DialogTitle>
-            </DialogHeader>
-            <CategoriaForm
-              initial={editing ?? undefined}
-              onSubmit={(c) => {
-                if (editing) {
-                  updateCategoria(editing.id, c);
-                  toast.success("Categoria atualizada");
-                } else {
-                  addCategoria(c);
-                  toast.success("Categoria criada");
-                }
-                setOpen(false);
-                setEditing(null);
-              }}
-            />
-          </DialogContent>
-        </Dialog>
+        {canManageInventory ? (
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" onClick={() => setEditing(null)}>
+                <Plus className="h-4 w-4" /> Nova categoria
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editing ? "Editar categoria" : "Nova categoria"}</DialogTitle>
+              </DialogHeader>
+              <CategoriaForm
+                initial={editing ?? undefined}
+                onSubmit={(c) => {
+                  if (editing) {
+                    updateCategoria(editing.id, c);
+                    toast.success("Categoria atualizada");
+                  } else {
+                    addCategoria(c);
+                    toast.success("Categoria criada");
+                  }
+                  setOpen(false);
+                  setEditing(null);
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        ) : null}
       </div>
 
       <Card>
@@ -81,19 +85,23 @@ function CategoriasPage() {
                     <TableCell className="text-sm text-muted-foreground">{c.descricao || "—"}</TableCell>
                     <TableCell className="text-center">{count}</TableCell>
                     <TableCell className="text-right space-x-1">
-                      <Button size="sm" variant="ghost" onClick={() => { setEditing(c); setOpen(true); }}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm" variant="ghost"
-                        onClick={() => {
-                          if (count > 0) return toast.error("Há itens vinculados a esta categoria.");
-                          deleteCategoria(c.id);
-                          toast.success("Categoria removida");
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {canManageInventory ? (
+                        <>
+                          <Button size="sm" variant="ghost" onClick={() => { setEditing(c); setOpen(true); }}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm" variant="ghost"
+                            onClick={() => {
+                              if (count > 0) return toast.error("Há itens vinculados a esta categoria.");
+                              deleteCategoria(c.id);
+                              toast.success("Categoria removida");
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 );
