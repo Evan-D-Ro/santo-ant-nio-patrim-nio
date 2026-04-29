@@ -291,7 +291,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ),
         ),
 
-
+      appendHistorico: (id, acao) =>
+        setItens((p) =>
+          p.map((x) => (x.id === id ? { ...x, historico: [...x.historico, acao] } : x)),
+        ),
 
       registrarMovimentacao: (m) => {
         const mov: Movimentacao = { ...m, id: uid(), data: m.data ?? now() };
