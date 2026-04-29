@@ -180,6 +180,10 @@ interface StoreCtx {
   deleteItem: (id: string) => void;
   changeStatus: (id: string, status: StatusItem, responsavel: string, observacao?: string) => void;
   appendHistorico: (id: string, acao: AcaoHistorico) => void;
+  // documentos
+  addDocumento: (itemId: string, doc: Omit<import("./types").DocumentoMidia, "id">) => void;
+  removeDocumento: (itemId: string, docId: string) => void;
+  setFoto: (itemId: string, url: string) => void;
   // movimentação
   registrarMovimentacao: (m: Omit<Movimentacao, "id" | "data"> & { data?: string }) => void;
   // manutenção
@@ -239,6 +243,48 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                       responsavel,
                       observacao,
                     },
+                  ],
+                }
+              : x,
+          ),
+        ),
+
+
+      addDocumento: (itemId, doc) =>
+        setItens((p) =>
+          p.map((x) =>
+            x.id === itemId
+              ? {
+                  ...x,
+                  documentos: [...x.documentos, { ...doc, id: uid() }],
+                  historico: [
+                    ...x.historico,
+                    { id: uid(), data: now(), acao: `Documento "${doc.nome}" anexado`, responsavel: "Sistema" },
+                  ],
+                }
+              : x,
+          ),
+        ),
+
+      removeDocumento: (itemId, docId) =>
+        setItens((p) =>
+          p.map((x) =>
+            x.id === itemId
+              ? { ...x, documentos: x.documentos.filter((d) => d.id !== docId) }
+              : x,
+          ),
+        ),
+
+      setFoto: (itemId, url) =>
+        setItens((p) =>
+          p.map((x) =>
+            x.id === itemId
+              ? {
+                  ...x,
+                  fotoUrl: url,
+                  historico: [
+                    ...x.historico,
+                    { id: uid(), data: now(), acao: "Foto principal atualizada", responsavel: "Sistema" },
                   ],
                 }
               : x,

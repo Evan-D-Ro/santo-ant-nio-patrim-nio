@@ -41,6 +41,7 @@ export interface Item {
   modelo?: string;
   equipamentoGeral: boolean;
   localAtual: string;
+  fotoUrl?: string;
   documentos: DocumentoMidia[];
   historico: AcaoHistorico[];
 }
