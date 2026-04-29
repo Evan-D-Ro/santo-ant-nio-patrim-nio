@@ -3,7 +3,6 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
-  "homepage": "https://inventarioparoquiasarancharia.evandroacorsi.dev",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
